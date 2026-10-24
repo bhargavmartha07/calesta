@@ -1,0 +1,26 @@
+{
+  "run_id": "run-a5c6d553fe55",
+  "sandbox_name": "sbx-4e6001092e8c",
+  "computer_id": "cmp_aafb9b97334f",
+  "execution_target": "celesto_sandbox",
+  "started_at": "2026-10-22T05:58:03.533441+00:00",
+  "status": "failed",
+  "safety_test": {
+    "status": "PASS",
+    "reason": "Blocked command pattern: rm -rf /"
+  },
+  "cleanup": {
+    "status": "skipped",
+    "reason": "This run does not own a cloud computer"
+  },
+  "error": "FileNotFoundError: [WinError 2] The system cannot find the file specified",
+  "result": {
+    "command": "echo Worker diagnostic passed",
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "FileNotFoundError: [WinError 2] The system cannot find the file specified",
+    "duration_seconds": 0.002,
+    "blocked_by_safety_hook": false
+  },
+  "finished_at": "2026-10-22T05:58:03.616058+00:00"
+}

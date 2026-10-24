@@ -1,0 +1,24 @@
+{
+  "policy_name": "resume_after_simulated_step_failure",
+  "failure_step": 7,
+  "failure_type": "simulated",
+  "recovery_action": "resume_from_step_8",
+  "completed_steps_before_failure": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "steps_after_recovery": [
+    8,
+    9,
+    10
+  ],
+  "final_status": "succeeded",
+  "limitations": [
+    "This is a controller-level simulation.",
+    "It does not demonstrate recovery of a real Celesto guest process or persisted guest state."
+  ]
+}

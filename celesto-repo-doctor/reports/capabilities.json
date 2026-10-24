@@ -1,0 +1,35 @@
+{
+  "capabilities": [
+    {
+      "name": "remote_command_execution",
+      "status": "verified",
+      "evidence": "A diagnostic echo command succeeded in an existing Celesto cloud computer."
+    },
+    {
+      "name": "persistent_cloud_computer_reuse",
+      "status": "observed",
+      "evidence": "The worker reused an existing running computer for diagnostic runs."
+    },
+    {
+      "name": "pre_execution_safety_hook",
+      "status": "verified_by_mocked_test",
+      "evidence": "The dangerous command was blocked before the Celesto CLI was called."
+    },
+    {
+      "name": "persistent_guest_state_across_stop_start",
+      "status": "verified",
+      "evidence": "The guest fixture survived a stop/start cycle. SHA-256: 2bc9c43e0547e59778a9c0ee00afb82f33009ab07b0694657a964282d50c15c6."
+    },
+    {
+      "name": "snapshot_creation",
+      "status": "attempted_failed",
+      "evidence": "Snapshot listing returned no snapshots. Creation failed with a computer-not-found error while computer lookup still showed the computer running. Root cause unknown."
+    }
+  ],
+  "limitations": [
+    "Snapshot creation and restoration have not been demonstrated.",
+    "Network policy enforcement has not been demonstrated.",
+    "The safety-hook test uses a mocked CLI and does not establish comprehensive containment.",
+    "Fresh-sandbox creation and cleanup have not been verified end to end."
+  ]
+}

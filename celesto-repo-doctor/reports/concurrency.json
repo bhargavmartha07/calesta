@@ -1,0 +1,11 @@
+{
+  "evaluation_status": "not_run",
+  "required_concurrent_jobs": 5,
+  "verified_concurrent_jobs": 0,
+  "unique_sandbox_names_required": true,
+  "jobs": [],
+  "limitations": [
+    "No five-job concurrent Celesto experiment has been verified yet.",
+    "Do not treat local tests or simulated jobs as concurrent cloud jobs."
+  ]
+}

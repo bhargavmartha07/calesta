@@ -1,0 +1,23 @@
+{
+  "lifecycle_status": "blocked",
+  "computer_id": "cmp_aafb9b97334f",
+  "computer_ownership": "pre_existing",
+  "creation": {
+    "status": "blocked",
+    "reason": "A previous cloud computer creation request returned HTTP 429."
+  },
+  "reuse": {
+    "status": "blocked",
+    "computer_status": "starting",
+    "diagnostic_command_status": "not_verified_end_to_end",
+    "notes": "Cloud API reports starting with started_at null; observability shows runtime instance/guest metrics but API state not running. Worker invocation fixed to WSL but end-to-end guest execution not successfully verified in this run."
+  },
+  "cleanup": {
+    "status": "not_performed",
+    "reason": "The worker reused a pre-existing computer and does not own it."
+  },
+  "limitations": [
+    "Fresh-computer creation and deletion lifecycle has not been verified end to end.",
+    "Existing computer stuck in starting state; real guest execution blocked pending provider resolution."
+  ]
+}

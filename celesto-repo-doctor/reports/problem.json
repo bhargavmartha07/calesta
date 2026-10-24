@@ -1,0 +1,14 @@
+{
+  "problem_id": "repository-doctor",
+  "problem_statement": "Run repository diagnostic work inside a Celesto sandbox, record execution evidence, and evaluate safety, lifecycle, recovery, and reliability.",
+  "execution_target": "celesto_sandbox",
+  "evaluation_status": "in_progress",
+  "verified_evidence": [
+    "A diagnostic echo command succeeded in an existing Celesto cloud computer.",
+    "Automated tests verified that the worker blocks rm -rf / before calling the Celesto CLI."
+  ],
+  "limitations": [
+    "The 20-run fresh-sandbox evaluation is incomplete.",
+    "The step-7 recovery demonstration is simulated."
+  ]
+}

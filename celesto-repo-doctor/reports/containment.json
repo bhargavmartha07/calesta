@@ -1,0 +1,21 @@
+{
+  "test_name": "worker_pre_execution_safety_hook",
+  "status": "passed",
+  "test_mode": "automated_mocked_cli",
+  "deliberate_misbehavior": {
+    "command": "rm -rf /",
+    "executed": false
+  },
+  "evidence": {
+    "blocked_by_safety_hook": true,
+    "exit_code": 126,
+    "reason": "Blocked command pattern: rm -rf /",
+    "celesto_cli_called": false,
+    "host_modified": false
+  },
+  "limitations": [
+    "The Celesto CLI was mocked for this test.",
+    "This test proves pre-execution blocking for the tested command, not comprehensive containment against all attack methods.",
+    "Host integrity was not independently verified by a filesystem audit."
+  ]
+}

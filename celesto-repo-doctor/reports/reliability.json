@@ -1,0 +1,15 @@
+{
+  "evaluation_status": "incomplete",
+  "required_fresh_sandbox_runs": 20,
+  "verified_successful_worker_runs": 2,
+  "fresh_sandbox_runs_verified": 0,
+  "successful_runs_reusing_existing_computer": 2,
+  "metrics": {
+    "median_wall_clock_seconds": null,
+    "p90_wall_clock_seconds": null,
+    "median_boot_to_ready_seconds": null,
+    "total_cost_usd": null
+  },
+  "blocker": "Cloud computer creation previously returned HTTP 429; cause not established.",
+  "note": "The two successful worker runs reused an existing cloud computer and are not fresh-sandbox evaluation runs."
+}

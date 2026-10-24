@@ -1,0 +1,369 @@
+
+import json
+import os
+import shlex
+import subprocess
+import time
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+import requests
+
+WSL_DISTRO = "Ubuntu"
+VENV_PATH = "~/celesto-test/.venv/bin/activate"
+
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8080")
+PROBLEM_ID = "repository-doctor"
+EXECUTION_TARGET = "celesto_sandbox"
+
+REPORT_DIR = Path("reports")
+REPORT_PATH = REPORT_DIR / "worker_report.json"
+COMMAND_LOG_PATH = Path("logs") / "commands.jsonl"
+
+# These commands are rejected before any request reaches the guest.
+BLOCKED_COMMANDS = {
+    "shutdown",
+    "reboot",
+    "mkfs",
+    "dd",
+    "iptables",
+    "nft",
+}
+
+BLOCKED_PATTERNS = [
+    "rm -rf /",
+    "curl ",
+    "wget ",
+    "nc ",
+    "netcat ",
+]
+
+
+def now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def check_command_safety(command: str) -> tuple[bool, str]:
+    """Reject selected dangerous commands before remote execution."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return False, "Malformed command quoting"
+
+    if not tokens:
+        return False, "Empty command"
+
+    for token in tokens:
+        executable = token.rsplit("/", 1)[-1]
+        if executable in BLOCKED_COMMANDS:
+            return False, f"Blocked command: {executable}"
+
+    lowered = command.lower()
+
+    for pattern in BLOCKED_PATTERNS:
+        if pattern in lowered:
+            return False, f"Blocked command pattern: {pattern.strip()}"
+
+    return True, "Command passed safety checks"
+
+
+def update_run_state(run_id: str, state: str) -> dict:
+    """Update the run through the trusted control-plane API."""
+    response = requests.patch(
+        f"{API_BASE_URL}/api/runs/{run_id}/state",
+        params={"state": state},
+        timeout=15,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def create_run() -> dict:
+    """Register a uniquely named run in the ledger."""
+    suffix = uuid.uuid4().hex[:12]
+
+    payload = {
+        "run_id": f"run-{suffix}",
+        "sandbox_name": f"sbx-{uuid.uuid4().hex[:12]}",
+        "problem_id": PROBLEM_ID,
+        "state": "created",
+        "execution_target": EXECUTION_TARGET,
+    }
+
+    response = requests.post(
+        f"{API_BASE_URL}/api/runs",
+        json=payload,
+        timeout=15,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+
+def celesto_cli(arguments: list[str], timeout: int = 120) -> dict:
+    """Invoke Celesto directly from the active Ubuntu environment."""
+    command = [
+        str(Path.home() / "celesto-test/.venv/bin/celesto"),
+        *arguments,
+    ]
+
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+    )
+
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            "Celesto returned invalid JSON. "
+            f"Exit code: {result.returncode}; "
+            f"stderr: {result.stderr.strip()}; "
+            f"stdout: {result.stdout[:1000]!r}"
+        ) from exc
+
+    if not isinstance(payload, dict):
+        raise RuntimeError("Celesto returned an unexpected JSON response")
+
+    if not payload.get("ok", False):
+        error = payload.get("error")
+        message = (
+            error.get("message", "Unknown Celesto error")
+            if isinstance(error, dict)
+            else "Celesto command failed"
+        )
+        raise RuntimeError(message)
+
+    return payload
+
+
+def create_cloud_computer() -> str:
+    """Create exactly one new cloud computer and return its actual ID.
+
+    No automatic retries: a creation request may allocate a billable resource.
+    """
+    payload = celesto_cli(
+        ["computer", "create", "--cloud", "--json"],
+        timeout=180,
+    )
+
+    data = payload.get("data")
+    computer_id = data.get("computer_id") if isinstance(data, dict) else None
+
+    if not isinstance(computer_id, str) or not computer_id:
+        raise RuntimeError(
+            "Celesto reported success but returned no computer_id"
+        )
+
+    return computer_id
+
+
+def run_in_celesto(computer_id: str, command: str) -> dict:
+    """Run a safety-checked command on this run's actual cloud computer."""
+    safe, reason = check_command_safety(command)
+
+    if not safe:
+        return {
+            "command": command,
+            "exit_code": 126,
+            "stdout": "",
+            "stderr": reason,
+            "duration_seconds": 0.0,
+            "blocked_by_safety_hook": True,
+        }
+
+    started = time.monotonic()
+
+    try:
+        payload = celesto_cli(
+            ["computer", "run", "--json", computer_id, command],
+            timeout=100,
+        )
+
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            raise RuntimeError("Celesto returned no command result data")
+
+        return {
+            "command": command,
+            "exit_code": data.get("exit_code", 1),
+            "stdout": data.get("stdout", ""),
+            "stderr": data.get("stderr", ""),
+            "duration_seconds": round(time.monotonic() - started, 3),
+            "blocked_by_safety_hook": False,
+        }
+
+    except subprocess.TimeoutExpired:
+        return {
+            "command": command,
+            "exit_code": 124,
+            "stdout": "",
+            "stderr": "Timed out while invoking Celesto",
+            "duration_seconds": round(time.monotonic() - started, 3),
+            "blocked_by_safety_hook": False,
+        }
+
+    except (OSError, RuntimeError) as exc:
+        return {
+            "command": command,
+            "exit_code": 1,
+            "stdout": "",
+            "stderr": f"{type(exc).__name__}: {exc}",
+            "duration_seconds": round(time.monotonic() - started, 3),
+            "blocked_by_safety_hook": False,
+        }
+
+
+def delete_cloud_computer(computer_id: str) -> dict:
+    """Delete only the computer ID returned by this run's create request."""
+    payload = celesto_cli(
+        ["computer", "delete", "--cloud", "--json", computer_id],
+        timeout=120,
+    )
+    return payload.get("data", {})
+
+
+def append_command_log(run_id: str, event: dict) -> None:
+    """Append execution and lifecycle events to the JSONL log."""
+    COMMAND_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    record = {
+        "timestamp": now(),
+        "run_id": run_id,
+        **event,
+    }
+
+    with COMMAND_LOG_PATH.open("a", encoding="utf-8") as file:
+        file.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+
+
+def cleanup_owned_computer(
+    computer_id: str | None,
+    owned_computer_id: str | None,
+) -> dict:
+    """Delete only a computer whose ID this run created and owns."""
+    if not owned_computer_id:
+        return {
+            "status": "skipped",
+            "reason": "This run does not own a cloud computer",
+        }
+
+    if computer_id != owned_computer_id:
+        return {
+            "status": "skipped",
+            "reason": "Computer ID does not match the owned computer ID",
+        }
+
+    try:
+        delete_cloud_computer(owned_computer_id)
+        return {
+            "status": "deleted",
+            "computer_id": owned_computer_id,
+        }
+    except Exception as exc:
+        return {
+            "status": "failed",
+            "computer_id": owned_computer_id,
+            "reason": f"{type(exc).__name__}: {exc}",
+        }
+
+def main() -> None:
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Reuse the existing, verified Celesto Cloud computer.
+    computer_id = "cmp_aafb9b97334f"
+
+    # Verify the safety hook locally; never send this command to Celesto.
+    safe, reason = check_command_safety("rm -rf /")
+    safety_test = {
+        "status": "FAIL" if safe else "PASS",
+        "reason": reason,
+    }
+    print(json.dumps({"safety_test": safety_test}, indent=2))
+
+    if safe:
+        raise RuntimeError("Safety hook failed its destructive-command test")
+
+    run = create_run()
+    run_id = run["run_id"]
+    started_at = now()
+
+    report = {
+        "run_id": run_id,
+        "sandbox_name": run["sandbox_name"],
+        "computer_id": computer_id,
+        "execution_target": EXECUTION_TARGET,
+        "started_at": started_at,
+        "status": "running",
+        "safety_test": safety_test,
+        "cleanup": {
+            "status": "not_needed",
+            "reason": "Reused existing computer; worker does not own it",
+        },
+    }
+
+    try:
+        update_run_state(run_id, "running")
+
+        append_command_log(
+            run_id,
+            {
+                "event": "computer_reused",
+                "computer_id": computer_id,
+                "sandbox_name": run["sandbox_name"],
+            },
+        )
+
+        result = run_in_celesto(
+            computer_id,
+            "echo Worker diagnostic passed",
+        )
+        append_command_log(run_id, {"event": "command_result", **result})
+
+        if result["exit_code"] == 0:
+            report["status"] = "succeeded"
+            update_run_state(run_id, "succeeded")
+        else:
+            report["status"] = "failed"
+            report["error"] = result.get("stderr") or "Guest command failed"
+            update_run_state(run_id, "failed")
+
+        report["result"] = result
+
+    except Exception as exc:
+        report["status"] = "failed"
+        report["error"] = f"{type(exc).__name__}: {exc}"
+
+        append_command_log(
+            run_id,
+            {"event": "worker_error", "error": report["error"]},
+        )
+
+        try:
+            update_run_state(run_id, "failed")
+        except Exception as ledger_exc:
+            report["ledger_update_error"] = (
+                f"{type(ledger_exc).__name__}: {ledger_exc}"
+            )
+
+    report["finished_at"] = now()
+    REPORT_PATH.write_text(
+        json.dumps(report, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    print(json.dumps(report, indent=2, ensure_ascii=False))
+
+    if report["status"] != "succeeded":
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()

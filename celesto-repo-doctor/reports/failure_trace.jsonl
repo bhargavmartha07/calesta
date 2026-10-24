@@ -1,0 +1,12 @@
+{"timestamp": "2026-10-21T09:17:05.607215+00:00", "run_id": "failure-a80f35935d74", "event": "step_completed", "step": 1}
+{"timestamp": "2026-10-21T09:17:05.607399+00:00", "run_id": "failure-a80f35935d74", "event": "step_completed", "step": 2}
+{"timestamp": "2026-10-21T09:17:05.607510+00:00", "run_id": "failure-a80f35935d74", "event": "step_completed", "step": 3}
+{"timestamp": "2026-10-21T09:17:05.607564+00:00", "run_id": "failure-a80f35935d74", "event": "step_completed", "step": 4}
+{"timestamp": "2026-10-21T09:17:05.607597+00:00", "run_id": "failure-a80f35935d74", "event": "step_completed", "step": 5}
+{"timestamp": "2026-10-21T09:17:05.607631+00:00", "run_id": "failure-a80f35935d74", "event": "step_completed", "step": 6}
+{"timestamp": "2026-10-21T09:17:05.607662+00:00", "run_id": "failure-a80f35935d74", "event": "step_failed", "step": 7, "reason": "Deliberate simulated failure", "recovery_action": "resume_from_step_8"}
+{"timestamp": "2026-10-21T09:17:05.607728+00:00", "run_id": "failure-a80f35935d74", "event": "recovery_started", "action": "resume_from_step_8", "completed_steps": [1, 2, 3, 4, 5, 6, 8, 9, 10]}
+{"timestamp": "2026-10-21T09:17:05.607765+00:00", "run_id": "failure-a80f35935d74", "event": "step_completed", "step": 8, "recovered": true}
+{"timestamp": "2026-10-21T09:17:05.608217+00:00", "run_id": "failure-a80f35935d74", "event": "step_completed", "step": 9, "recovered": true}
+{"timestamp": "2026-10-21T09:17:05.608312+00:00", "run_id": "failure-a80f35935d74", "event": "step_completed", "step": 10, "recovered": true}
+{"timestamp": "2026-10-21T09:17:05.608356+00:00", "run_id": "failure-a80f35935d74", "event": "workflow_completed", "status": "succeeded", "completed_steps": [1, 2, 3, 4, 5, 6, 8, 9, 10], "failed_step": 7, "recovery_action": "resume_from_step_8"}
